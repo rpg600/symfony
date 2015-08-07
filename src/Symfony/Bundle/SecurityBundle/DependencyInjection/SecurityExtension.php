@@ -200,16 +200,6 @@ class SecurityExtension extends Extension
         $firewalls = $config['firewalls'];
         $providerIds = $this->createUserProviders($config, $container);
 
-        // make the ContextListener aware of the configured user providers
-        $definition = $container->getDefinition('security.context_listener');
-        $arguments = $definition->getArguments();
-        $userProviders = array();
-        foreach ($providerIds as $userProviderId) {
-            $userProviders[] = new Reference($userProviderId);
-        }
-        $arguments[1] = $userProviders;
-        $definition->setArguments($arguments);
-
         // load firewall map
         $mapDef = $container->getDefinition('security.firewall.map');
         $map = $authenticationProviders = array();
@@ -271,7 +261,7 @@ class SecurityExtension extends Extension
                 $contextKey = $firewall['context'];
             }
 
-            $listeners[] = new Reference($this->createContextListener($container, $contextKey));
+            $listeners[] = new Reference($this->createContextListener($container, $contextKey, $defaultProvider));
         }
 
         // Logout listener
@@ -354,14 +344,18 @@ class SecurityExtension extends Extension
         return array($matcher, $listeners, $exceptionListener);
     }
 
-    private function createContextListener($container, $contextKey)
+    private function createContextListener($container, $contextKey, $defaultProvider)
     {
         if (isset($this->contextListeners[$contextKey])) {
+            $listener = $container->getDefinition($this->contextListeners[$contextKey]);
+            $listener->replaceArgument(1, array_merge($listener->getArgument(1), array($defaultProvider => new Reference($defaultProvider))));
+
             return $this->contextListeners[$contextKey];
         }
 
         $listenerId = 'security.context_listener.'.count($this->contextListeners);
         $listener = $container->setDefinition($listenerId, new DefinitionDecorator('security.context_listener'));
+        $listener->replaceArgument(1, array($defaultProvider => new Reference($defaultProvider)));
         $listener->replaceArgument(2, $contextKey);
 
         return $this->contextListeners[$contextKey] = $listenerId;

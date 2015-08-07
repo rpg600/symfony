@@ -157,27 +157,27 @@ class ContextListener implements ListenerInterface
             $this->logger->debug(sprintf('Reloading user from user provider.'));
         }
 
-        foreach ($this->userProviders as $provider) {
-            try {
-                $refreshedUser = $provider->refreshUser($user);
-                $token->setUser($refreshedUser);
-
-                if (null !== $this->logger) {
-                    $this->logger->debug(sprintf('Username "%s" was reloaded from user provider.', $refreshedUser->getUsername()));
-                }
-
-                return $token;
-            } catch (UnsupportedUserException $e) {
-                // let's try the next user provider
-            } catch (UsernameNotFoundException $e) {
-                if (null !== $this->logger) {
-                    $this->logger->warning(sprintf('Username "%s" could not be found.', $e->getUsername()));
-                }
-
-                return;
-            }
+        if (!isset($this->userProviders[$token->getProviderKey()])) {
+            throw new \RuntimeException(sprintf('There is no user provider for user "%s".', get_class($user)));
         }
 
-        throw new \RuntimeException(sprintf('There is no user provider for user "%s".', get_class($user)));
+        $provider = $this->userProviders[$token->getProviderKey()];
+
+        try {
+            $refreshedUser = $provider->refreshUser($user);
+            $token->setUser($refreshedUser);
+
+            if (null !== $this->logger) {
+                $this->logger->debug(sprintf('Username "%s" was reloaded from user provider.', $refreshedUser->getUsername()));
+            }
+
+            return $token;
+        } catch (UsernameNotFoundException $e) {
+            if (null !== $this->logger) {
+                $this->logger->warning(sprintf('Username "%s" could not be found.', $e->getUsername()));
+            }
+
+            throw $e;
+        }
     }
 }
